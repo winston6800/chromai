@@ -1,7 +1,6 @@
-
 import React, { useRef } from 'react';
 import { Settings, ProcessedImage } from '../types';
-import { Plus, X, Wand2, Layers, Zap, PenTool } from 'lucide-react';
+import { Plus, X, Wand2, Layers, Zap, PenTool, Lightbulb } from 'lucide-react';
 import { fileToBase64 } from '../services/geminiService';
 
 interface SettingsPanelProps {
@@ -148,9 +147,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               placeholder="e.g. Use a retro 90s aesthetic, muted colors, and high contrast shadows. Ensure all magic effects are purple."
               className="w-full bg-zinc-900/80 border border-white/10 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none h-28"
             />
-            <p className="text-[10px] text-zinc-600">
-               These instructions apply to <strong>every page</strong> in the project.
-            </p>
+            
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex gap-3">
+              <Lightbulb className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <div className="text-[10px] text-blue-200 leading-tight">
+                <span className="font-bold text-blue-300">Pro Tip:</span> Models might not know every character name perfectly. For best results with specific palettes (like "Yotsuba"), 
+                <span className="text-white font-bold cursor-pointer hover:underline" onClick={() => refInputRef.current?.click()}> upload a Reference Image</span> of the character.
+              </div>
+            </div>
           </div>
         </div>
 

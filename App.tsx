@@ -6,9 +6,15 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { ComparisonSlider } from './components/ComparisonSlider';
 import { ProcessedImage, Settings } from './types';
 import { colorizeMangaPage, fileToBase64 } from './services/geminiService';
-import { Loader2, Sparkles, AlertCircle, Layout, Trash2, CheckCircle2 } from 'lucide-react';
+import { Loader2, Sparkles, AlertCircle, Layout, Trash2, CheckCircle2, Lock, Key, X } from 'lucide-react';
 
 const App: React.FC = () => {
+  // === API Key Gating State ===
+  const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+  const [isCheckingKey, setIsCheckingKey] = useState<boolean>(true);
+  const [bypassAuth, setBypassAuth] = useState<boolean>(false);
+
+  // === App State ===
   const [pages, setPages] = useState<ProcessedImage[]>([]);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   
@@ -22,6 +28,36 @@ const App: React.FC = () => {
 
   const selectedPage = pages.find(p => p.id === selectedPageId) || null;
   const isProcessing = pages.some(p => p.status === 'processing');
+
+  // === Check API Key on Mount ===
+  useEffect(() => {
+    const checkKey = async () => {
+      setIsCheckingKey(true);
+      try {
+        if (window.aistudio && window.aistudio.hasSelectedApiKey) {
+          const has = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(has);
+        } else {
+          // Fallback for environments without the wrapper (e.g. local dev), assume provided via env
+          setHasApiKey(true);
+        }
+      } catch (e) {
+        console.error("Error checking API key:", e);
+        setHasApiKey(false);
+      } finally {
+        setIsCheckingKey(false);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleConnectKey = async () => {
+    if (window.aistudio && window.aistudio.openSelectKey) {
+      await window.aistudio.openSelectKey();
+      // Assume success to proceed, handle potential failure in API call later
+      setHasApiKey(true);
+    }
+  };
 
   useEffect(() => {
     let interval: number;
@@ -89,9 +125,23 @@ const App: React.FC = () => {
       });
 
     } catch (error: any) {
+      const errorMessage = error.message || "Failed.";
+      
+      // If error is 403 or permission denied or entity not found, force re-selection of key
+      if (
+        errorMessage.includes("403") || 
+        errorMessage.includes("PERMISSION_DENIED") || 
+        errorMessage.includes("Requested entity was not found")
+      ) {
+         updatePage(pageId, { status: 'idle', error: "API Key Permission Error. Please reconnect." });
+         setHasApiKey(false);
+         setBypassAuth(false); // Reset bypass so lock screen appears
+         return;
+      }
+
       updatePage(pageId, { 
         status: 'error', 
-        error: error.message || "Failed." 
+        error: errorMessage
       });
     }
   };
@@ -111,6 +161,79 @@ const App: React.FC = () => {
     });
   };
 
+  // === RENDER: API KEY LOCK SCREEN ===
+  if (isCheckingKey) {
+    return (
+      <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!hasApiKey && !bypassAuth) {
+    return (
+      <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col relative overflow-hidden">
+        <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
+        <Header />
+        
+        <div className="flex-1 flex flex-col items-center justify-center p-6 z-10">
+          <div className="max-w-md w-full glass-panel p-8 rounded-2xl border border-white/10 shadow-2xl flex flex-col items-center text-center space-y-6 relative">
+            
+            <button 
+              onClick={() => {
+                setSettings(prev => ({ ...prev, model: 'gemini-2.5-flash-image' }));
+                setBypassAuth(true);
+              }}
+              className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-full transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-16 h-16 rounded-full bg-violet-500/10 flex items-center justify-center ring-1 ring-violet-500/50 shadow-[0_0_30px_rgba(139,92,246,0.3)]">
+              <Lock className="w-8 h-8 text-violet-400" />
+            </div>
+            
+            <div className="space-y-2">
+              <h1 className="text-2xl font-bold font-display text-white">Unlock Studio Access</h1>
+              <p className="text-zinc-400 text-sm leading-relaxed">
+                ChromaManga uses the professional 
+                <span className="text-fuchsia-400 font-bold mx-1">Gemini 3 Pro</span> 
+                model for high-fidelity colorization. To continue, please connect a billing-enabled API Key.
+              </p>
+            </div>
+
+            <button 
+              onClick={handleConnectKey}
+              className="w-full py-3 px-4 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-bold rounded-xl shadow-lg shadow-violet-500/25 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              <Key className="w-4 h-4" />
+              Connect API Key
+            </button>
+
+            <div className="pt-2">
+              <button 
+                onClick={() => {
+                  setSettings(prev => ({ ...prev, model: 'gemini-2.5-flash-image' }));
+                  setBypassAuth(true);
+                }}
+                className="text-xs text-zinc-500 hover:text-violet-300 underline underline-offset-4 transition-colors"
+              >
+                Or continue with Nano Banana 2.5 (Free)
+              </button>
+            </div>
+
+            <p className="text-[10px] text-zinc-600">
+              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="hover:text-zinc-400 underline decoration-zinc-700">
+                Learn about Gemini API billing
+              </a>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // === RENDER: MAIN APP ===
   return (
     <div className="min-h-screen bg-[#09090b] text-zinc-100 selection:bg-violet-500/30 overflow-hidden flex flex-col">
       <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>

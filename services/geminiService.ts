@@ -3,9 +3,6 @@ import { GoogleGenAI } from "@google/genai";
 import { Settings } from '../types';
 import { DEFAULT_PROMPT, CONSISTENCY_PROMPT } from '../constants';
 
-const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
-
 interface GenerateImageParams {
   imageBase64: string;
   mimeType: string;
@@ -13,14 +10,23 @@ interface GenerateImageParams {
   specificPrompt?: string;
 }
 
+const SYSTEM_INSTRUCTION = `You are an expert manga colorist AI. Your ONLY job is to add color to black-and-white ink drawings.
+
+RULES:
+1. **PRESERVE LINE ART**: Do not change the drawing, composition, or characters of the Target Image. Your output must line up perfectly with the original black-and-white input.
+2. **STYLE TRANSFER**: If a Reference Image is provided, copy its color palette (skin, hair, clothes, lighting) exactly, but apply it to the geometry of the Target Image.
+3. **INFERENCE**: If user instructions (e.g. "Yotsuba style") contradict the Reference Image, prioritize the Reference Image for colors but the Text for specific mood adjustments.
+
+OUTPUT:
+Return ONLY the generated image.`;
+
 export const colorizeMangaPage = async ({ imageBase64, mimeType, settings, specificPrompt }: GenerateImageParams): Promise<string> => {
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please check your environment configuration.");
-  }
+  // CRITICAL: Initialize the client inside the function to ensure it uses the latest selected API key.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   // Combine global and specific instructions
-  const globalInst = settings.instructions ? `Global Project Style/Instructions: ${settings.instructions}` : '';
-  const pageInst = specificPrompt ? `Specific Page Request (Override global if conflicting): ${specificPrompt}` : '';
+  const globalInst = settings.instructions ? `USER INSTRUCTIONS: ${settings.instructions}` : '';
+  const pageInst = specificPrompt ? `PAGE SPECIFIC OVERRIDES: ${specificPrompt}` : '';
   
   const combinedInstructions = `${globalInst}\n${pageInst}`;
   
@@ -29,16 +35,17 @@ export const colorizeMangaPage = async ({ imageBase64, mimeType, settings, speci
   let promptText = "";
 
   if (settings.referenceImage) {
-    // Reference Image Mode
-    // Add Reference Image First
+    // Reference Image Mode - STRICT ORDERING
+    
+    // 1. Reference Image (Style Source)
     parts.push({
       inlineData: {
-        mimeType: "image/png", // Assuming reference is converted or same type, but generic png is usually safe for inline
+        mimeType: "image/png", 
         data: settings.referenceImage
       }
     });
 
-    // Add Target Image Second
+    // 2. Target Image (Content Source)
     parts.push({
       inlineData: {
         mimeType: mimeType,
@@ -46,7 +53,7 @@ export const colorizeMangaPage = async ({ imageBase64, mimeType, settings, speci
       }
     });
 
-    promptText = `${CONSISTENCY_PROMPT} \n\n ${combinedInstructions} \n\n Return ONLY the colorized version of the TARGET image.`;
+    promptText = `${CONSISTENCY_PROMPT} \n\n ${combinedInstructions} \n\n REMEMBER: IMAGE 2 IS THE TARGET. DO NOT CHANGE THE DRAWING OF IMAGE 2.`;
   } else {
     // Single Image Mode
     parts.push({
@@ -56,7 +63,7 @@ export const colorizeMangaPage = async ({ imageBase64, mimeType, settings, speci
       }
     });
 
-    promptText = `${DEFAULT_PROMPT} \n\n ${combinedInstructions} \n\n Return ONLY the image.`;
+    promptText = `${DEFAULT_PROMPT} \n\n ${combinedInstructions}`;
   }
 
   // Add text prompt last
@@ -68,6 +75,9 @@ export const colorizeMangaPage = async ({ imageBase64, mimeType, settings, speci
       contents: {
         parts: parts
       },
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+      }
     });
 
     // Parse response to find the image part
@@ -85,7 +95,6 @@ export const colorizeMangaPage = async ({ imageBase64, mimeType, settings, speci
       if (part.inlineData && part.inlineData.data) {
         // Found the image
         const base64Data = part.inlineData.data;
-        // Determine mimeType if possible, otherwise default to png as that's typical for these models
         const outMimeType = part.inlineData.mimeType || 'image/png';
         return `data:${outMimeType};base64,${base64Data}`;
       }
@@ -95,7 +104,7 @@ export const colorizeMangaPage = async ({ imageBase64, mimeType, settings, speci
     const textPart = content.parts.find(p => p.text);
     if (textPart) {
       console.warn("Model returned text instead of image:", textPart.text);
-      throw new Error("The model returned text instead of an image. Try adjusting instructions or the reference image.");
+      throw new Error("The model returned text analysis instead of an image. Try refining your instruction or using a simpler prompt.");
     }
 
     throw new Error("No image data found in the response.");
