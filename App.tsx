@@ -4,9 +4,10 @@ import { Header } from './components/Header';
 import { Dropzone } from './components/Dropzone';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ComparisonSlider } from './components/ComparisonSlider';
+import { ManualEditor } from './components/ManualEditor'; // Import new component
 import { ProcessedImage, Settings } from './types';
 import { colorizeMangaPage, fileToBase64 } from './services/geminiService';
-import { Loader2, Sparkles, AlertCircle, Layout, Trash2, CheckCircle2, Lock, Key, X } from 'lucide-react';
+import { Loader2, Sparkles, AlertCircle, Layout, Trash2, CheckCircle2, Lock, Key, X, Edit3 } from 'lucide-react';
 
 const App: React.FC = () => {
   // === API Key Gating State ===
@@ -25,6 +26,7 @@ const App: React.FC = () => {
   });
   
   const [processingTime, setProcessingTime] = useState(0);
+  const [isEditing, setIsEditing] = useState(false); // Track editing mode
 
   const selectedPage = pages.find(p => p.id === selectedPageId) || null;
   const isProcessing = pages.some(p => p.status === 'processing');
@@ -72,6 +74,11 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [isProcessing]);
 
+  // Reset editing mode when switching pages
+  useEffect(() => {
+    setIsEditing(false);
+  }, [selectedPageId]);
+
   const handleFilesSelect = async (files: File[]) => {
     try {
       const newPages: ProcessedImage[] = [];
@@ -107,6 +114,7 @@ const App: React.FC = () => {
 
     // Update status to processing
     updatePage(pageId, { status: 'processing', error: undefined });
+    setIsEditing(false);
 
     try {
       const base64Data = pageToProcess.originalUrl.split(',')[1];
@@ -159,6 +167,13 @@ const App: React.FC = () => {
       }
       return newPages;
     });
+  };
+
+  const handleManualSave = (newImageUrl: string) => {
+    if (selectedPageId) {
+      updatePage(selectedPageId, { colorizedUrl: newImageUrl });
+      setIsEditing(false);
+    }
   };
 
   // === RENDER: API KEY LOCK SCREEN ===
@@ -242,8 +257,8 @@ const App: React.FC = () => {
 
       <div className="flex-1 flex pt-16 h-screen overflow-hidden">
         
-        {/* Left Sidebar: Film Strip */}
-        {pages.length > 0 && (
+        {/* Left Sidebar: Film Strip (Hidden when Editing to give space) */}
+        {!isEditing && pages.length > 0 && (
           <aside className="w-64 bg-black/40 border-r border-white/5 flex flex-col h-full z-10 glass-panel">
             <div className="p-4 border-b border-white/5 flex items-center justify-between">
               <h2 className="font-bold text-sm text-zinc-400 flex items-center gap-2">
@@ -330,86 +345,110 @@ const App: React.FC = () => {
                <Dropzone onFilesSelect={handleFilesSelect} />
             </div>
           ) : (
-            <div className="flex-1 flex flex-col p-6 h-full overflow-hidden relative">
-              
-              {/* Toolbar */}
-              <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                 <div>
-                   <h2 className="text-2xl font-bold font-display">Editor</h2>
-                   <p className="text-xs text-zinc-500 font-mono">
-                     {selectedPageId ? `ID: ${selectedPageId.split('-')[0]}...` : 'Select a page'}
-                   </p>
-                 </div>
-                 
-                 {selectedPage && selectedPage.status !== 'processing' && (
-                   <button
-                     onClick={handleProcessSelected}
-                     className="group relative px-6 py-2.5 bg-white text-black font-bold text-sm rounded-lg shadow-lg shadow-violet-500/10 hover:shadow-violet-500/20 hover:scale-105 active:scale-95 transition-all overflow-hidden"
-                   >
-                     <div className="absolute inset-0 bg-gradient-to-r from-violet-400 via-fuchsia-400 to-violet-400 opacity-0 group-hover:opacity-20 transition-opacity animate-gradient-x"></div>
-                     <span className="relative flex items-center gap-2">
-                       <Sparkles className="w-4 h-4 text-violet-600" />
-                       {selectedPage.status === 'completed' ? 'Regenerate' : 'Colorize Page'}
-                     </span>
-                   </button>
-                 )}
+            isEditing && selectedPage && selectedPage.colorizedUrl ? (
+              // === MANUAL EDITOR MODE ===
+              <div className="flex-1 flex flex-col h-full overflow-hidden relative animate-fade-in">
+                 <ManualEditor 
+                    imageUrl={selectedPage.colorizedUrl} 
+                    onSave={handleManualSave}
+                    onCancel={() => setIsEditing(false)}
+                 />
               </div>
-
-              {/* Canvas Area */}
-              <div className="flex-1 relative rounded-2xl overflow-hidden bg-[#0c0c0e] border border-white/5 shadow-2xl flex items-center justify-center">
-                 {selectedPage ? (
-                    <div className="w-full h-full p-4 flex items-center justify-center relative">
-                       {selectedPage.status === 'processing' && (
-                          <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center">
-                             <div className="relative w-20 h-20 mb-6">
-                               <div className="absolute inset-0 border-4 border-violet-500/20 rounded-full"></div>
-                               <div className="absolute inset-0 border-t-4 border-violet-500 rounded-full animate-spin"></div>
-                               <div className="absolute inset-0 flex items-center justify-center">
-                                 <span className="text-xs font-mono text-violet-300">{processingTime.toFixed(0)}s</span>
-                               </div>
-                             </div>
-                             <p className="text-white font-medium animate-pulse">Analyzing Ink & Shadows...</p>
-                          </div>
-                       )}
-
-                       {selectedPage.status === 'completed' && selectedPage.colorizedUrl ? (
-                         <ComparisonSlider 
-                           beforeImage={selectedPage.originalUrl}
-                           afterImage={selectedPage.colorizedUrl}
-                           onReset={() => {}} // No-op in list mode, just regenerate
-                         />
-                       ) : (
-                         <img 
-                           src={selectedPage.originalUrl} 
-                           className="max-w-full max-h-full object-contain shadow-2xl" 
-                           alt="Original"
-                         />
+            ) : (
+              // === STANDARD VIEWER MODE ===
+              <div className="flex-1 flex flex-col p-6 h-full overflow-hidden relative">
+                
+                {/* Toolbar */}
+                <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                   <div>
+                     <h2 className="text-2xl font-bold font-display">Editor</h2>
+                     <p className="text-xs text-zinc-500 font-mono">
+                       {selectedPageId ? `ID: ${selectedPageId.split('-')[0]}...` : 'Select a page'}
+                     </p>
+                   </div>
+                   
+                   {selectedPage && selectedPage.status !== 'processing' && (
+                     <div className="flex gap-3">
+                       {selectedPage.status === 'completed' && selectedPage.colorizedUrl && (
+                         <button
+                           onClick={() => setIsEditing(true)}
+                           className="px-4 py-2 bg-zinc-800 text-zinc-200 font-bold text-sm rounded-lg hover:bg-zinc-700 transition-all flex items-center gap-2 border border-white/5"
+                         >
+                           <Edit3 className="w-4 h-4" />
+                           Hand Edit
+                         </button>
                        )}
                        
-                       {selectedPage.status === 'error' && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-                             <div className="bg-zinc-900 p-6 rounded-2xl border border-red-500/30 max-w-md text-center">
-                               <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
-                               <h3 className="text-lg font-bold text-white mb-2">Error Processing Page</h3>
-                               <p className="text-sm text-zinc-400">{selectedPage.error}</p>
-                             </div>
-                          </div>
-                       )}
-                    </div>
-                 ) : (
-                   <div className="text-zinc-500 flex flex-col items-center gap-4">
-                     <Layout className="w-12 h-12 opacity-20" />
-                     <p>Select a page from the storyboard</p>
-                   </div>
-                 )}
-              </div>
+                       <button
+                         onClick={handleProcessSelected}
+                         className="group relative px-6 py-2 bg-white text-black font-bold text-sm rounded-lg shadow-lg shadow-violet-500/10 hover:shadow-violet-500/20 hover:scale-105 active:scale-95 transition-all overflow-hidden"
+                       >
+                         <div className="absolute inset-0 bg-gradient-to-r from-violet-400 via-fuchsia-400 to-violet-400 opacity-0 group-hover:opacity-20 transition-opacity animate-gradient-x"></div>
+                         <span className="relative flex items-center gap-2">
+                           <Sparkles className="w-4 h-4 text-violet-600" />
+                           {selectedPage.status === 'completed' ? 'Regenerate' : 'Colorize Page'}
+                         </span>
+                       </button>
+                     </div>
+                   )}
+                </div>
 
-            </div>
+                {/* Canvas Area */}
+                <div className="flex-1 relative rounded-2xl overflow-hidden bg-[#0c0c0e] border border-white/5 shadow-2xl flex items-center justify-center">
+                   {selectedPage ? (
+                      <div className="w-full h-full p-4 flex items-center justify-center relative">
+                         {selectedPage.status === 'processing' && (
+                            <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center">
+                               <div className="relative w-20 h-20 mb-6">
+                                 <div className="absolute inset-0 border-4 border-violet-500/20 rounded-full"></div>
+                                 <div className="absolute inset-0 border-t-4 border-violet-500 rounded-full animate-spin"></div>
+                                 <div className="absolute inset-0 flex items-center justify-center">
+                                   <span className="text-xs font-mono text-violet-300">{processingTime.toFixed(0)}s</span>
+                                 </div>
+                               </div>
+                               <p className="text-white font-medium animate-pulse">Analyzing Ink & Shadows...</p>
+                            </div>
+                         )}
+
+                         {selectedPage.status === 'completed' && selectedPage.colorizedUrl ? (
+                           <ComparisonSlider 
+                             beforeImage={selectedPage.originalUrl}
+                             afterImage={selectedPage.colorizedUrl}
+                             onReset={() => {}} // No-op in list mode, just regenerate
+                           />
+                         ) : (
+                           <img 
+                             src={selectedPage.originalUrl} 
+                             className="max-w-full max-h-full object-contain shadow-2xl" 
+                             alt="Original"
+                           />
+                         )}
+                         
+                         {selectedPage.status === 'error' && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+                               <div className="bg-zinc-900 p-6 rounded-2xl border border-red-500/30 max-w-md text-center">
+                                 <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
+                                 <h3 className="text-lg font-bold text-white mb-2">Error Processing Page</h3>
+                                 <p className="text-sm text-zinc-400">{selectedPage.error}</p>
+                               </div>
+                            </div>
+                         )}
+                      </div>
+                   ) : (
+                     <div className="text-zinc-500 flex flex-col items-center gap-4">
+                       <Layout className="w-12 h-12 opacity-20" />
+                       <p>Select a page from the storyboard</p>
+                     </div>
+                   )}
+                </div>
+
+              </div>
+            )
           )}
         </main>
 
-        {/* Right Settings Panel */}
-        {pages.length > 0 && (
+        {/* Right Settings Panel (Hidden when editing to maximize space) */}
+        {!isEditing && pages.length > 0 && (
           <aside className="w-80 border-l border-white/5 h-full z-10 bg-black/40 backdrop-blur-xl">
              <SettingsPanel 
                settings={settings} 
