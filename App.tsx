@@ -5,11 +5,17 @@ import { Dropzone } from './components/Dropzone';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ComparisonSlider } from './components/ComparisonSlider';
 import { ManualEditor } from './components/ManualEditor'; // Import new component
+import PricingPage from './components/PricingPage';
 import { ProcessedImage, Settings } from './types';
 import { colorizeMangaPage, fileToBase64 } from './services/geminiService';
-import { Loader2, Sparkles, AlertCircle, Layout, Trash2, CheckCircle2, Lock, Key, X, Edit3 } from 'lucide-react';
+import { Loader2, Sparkles, AlertCircle, Layout, Trash2, CheckCircle2, Lock, Key, X, Edit3, Zap, Clock, DollarSign, TrendingDown, Gauge, Rocket } from 'lucide-react';
+
+type Route = 'home' | 'pricing';
 
 const App: React.FC = () => {
+  // === Routing State ===
+  const [currentRoute, setCurrentRoute] = useState<Route>('home');
+
   // === API Key Gating State ===
   const [hasApiKey, setHasApiKey] = useState<boolean>(false);
   const [isCheckingKey, setIsCheckingKey] = useState<boolean>(true);
@@ -30,6 +36,25 @@ const App: React.FC = () => {
 
   const selectedPage = pages.find(p => p.id === selectedPageId) || null;
   const isProcessing = pages.some(p => p.status === 'processing');
+
+  // === Handle URL Hash Routing ===
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash === 'pricing') {
+        setCurrentRoute('pricing');
+      } else {
+        setCurrentRoute('home');
+      }
+    };
+
+    // Check initial hash
+    handleHashChange();
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // === Check API Key on Mount ===
   useEffect(() => {
@@ -176,6 +201,16 @@ const App: React.FC = () => {
     }
   };
 
+  // === RENDER: PRICING PAGE ===
+  if (currentRoute === 'pricing') {
+    return (
+      <>
+        <Header onNavigate={setCurrentRoute} />
+        <PricingPage />
+      </>
+    );
+  }
+
   // === RENDER: API KEY LOCK SCREEN ===
   if (isCheckingKey) {
     return (
@@ -189,7 +224,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col relative overflow-hidden">
         <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
-        <Header />
+        <Header onNavigate={setCurrentRoute} />
         
         <div className="flex-1 flex flex-col items-center justify-center p-6 z-10">
           <div className="max-w-md w-full glass-panel p-8 rounded-2xl border border-white/10 shadow-2xl flex flex-col items-center text-center space-y-6 relative">
@@ -253,7 +288,7 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-[#09090b] text-zinc-100 selection:bg-violet-500/30 overflow-hidden flex flex-col">
       <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
       
-      <Header />
+      <Header onNavigate={setCurrentRoute} />
 
       <div className="flex-1 flex pt-16 h-screen overflow-hidden">
         
@@ -328,21 +363,117 @@ const App: React.FC = () => {
         <main className="flex-1 relative flex flex-col h-full overflow-hidden">
           
           {pages.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 animate-fade-in-up">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-900/30 border border-violet-500/30 text-violet-300 text-xs font-bold uppercase tracking-wider mb-6">
-                 <Sparkles className="w-3 h-3" />
-                 <span>Consistent AI Colorization</span>
-               </div>
-               <h1 className="text-4xl lg:text-6xl font-bold font-display tracking-tight leading-tight text-center mb-6">
-                 Studio Mode <br />
-                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-400 to-white">
-                   Activated
-                 </span>
-               </h1>
-               <p className="text-lg text-zinc-400 max-w-xl text-center mb-12">
-                 Upload your manga chapters. Use the consistency engine to keep character colors uniform across all panels.
-               </p>
-               <Dropzone onFilesSelect={handleFilesSelect} />
+            <div className="flex-1 flex flex-col items-center justify-center p-8 animate-fade-in-up overflow-y-auto">
+              <div className="max-w-5xl w-full space-y-12">
+                {/* Hero Section */}
+                <div className="text-center">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-900/30 border border-violet-500/30 text-violet-300 text-xs font-bold uppercase tracking-wider mb-6">
+                    <Sparkles className="w-3 h-3" />
+                    <span>Consistent AI Colorization</span>
+                  </div>
+                  <h1 className="text-4xl lg:text-6xl font-bold font-display tracking-tight leading-tight mb-6">
+                    Studio Mode <br />
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-400 to-white">
+                      Activated
+                    </span>
+                  </h1>
+                  <p className="text-lg text-zinc-400 max-w-xl mx-auto mb-12">
+                    Upload your manga chapters. Use the consistency engine to keep character colors uniform across all panels.
+                  </p>
+                  <Dropzone onFilesSelect={handleFilesSelect} />
+                </div>
+
+                {/* Speed & Cost Optimizations */}
+                <div className="grid md:grid-cols-2 gap-6 mt-16">
+                  {/* Speed Optimization */}
+                  <div className="glass-panel rounded-2xl border border-white/10 p-8">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center">
+                        <Rocket className="w-6 h-6 text-violet-400" />
+                      </div>
+                      <h2 className="text-2xl font-bold font-display">Lightning Fast</h2>
+                    </div>
+                    <p className="text-zinc-400 mb-6">
+                      Process entire chapters in minutes, not hours. Our optimized pipeline delivers results faster than traditional methods.
+                    </p>
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <Zap className="w-5 h-5 text-violet-400 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-semibold text-white mb-1">Gemini 2.5 Flash</div>
+                          <div className="text-sm text-zinc-400">Ultra-fast processing for rapid iterations and quick previews</div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Gauge className="w-5 h-5 text-fuchsia-400 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-semibold text-white mb-1">Batch Processing</div>
+                          <div className="text-sm text-zinc-400">Process up to 10 pages simultaneously, cutting workflow time by 90%</div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Clock className="w-5 h-5 text-violet-400 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-semibold text-white mb-1">Priority Queues</div>
+                          <div className="text-sm text-zinc-400">Studio tier users get priority access for faster turnaround times</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cost Optimization */}
+                  <div className="glass-panel rounded-2xl border border-white/10 p-8">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-fuchsia-500/20 flex items-center justify-center">
+                        <TrendingDown className="w-6 h-6 text-fuchsia-400" />
+                      </div>
+                      <h2 className="text-2xl font-bold font-display">Cost Efficient</h2>
+                    </div>
+                    <p className="text-zinc-400 mb-6">
+                      Smart pricing that scales with your needs. Choose the right model for each project to maximize value.
+                    </p>
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <DollarSign className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-semibold text-white mb-1">Two-Tier Model System</div>
+                          <div className="text-sm text-zinc-400">Use fast Flash for drafts ($0.02/page) or Pro for final quality ($0.10/page)</div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <TrendingDown className="w-5 h-5 text-fuchsia-400 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-semibold text-white mb-1">Volume Discounts</div>
+                          <div className="text-sm text-zinc-400">Enterprise clients save up to 40% with bulk processing discounts</div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Sparkles className="w-5 h-5 text-violet-400 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-semibold text-white mb-1">Flexible Pricing</div>
+                          <div className="text-sm text-zinc-400">From $9/month for hobbyists to custom enterprise solutions</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stats Bar */}
+                <div className="grid grid-cols-3 gap-4 mt-8">
+                  <div className="glass-panel rounded-xl border border-white/10 p-6 text-center">
+                    <div className="text-3xl font-bold text-white mb-2">10x</div>
+                    <div className="text-sm text-zinc-400">Faster than manual</div>
+                  </div>
+                  <div className="glass-panel rounded-xl border border-white/10 p-6 text-center">
+                    <div className="text-3xl font-bold text-white mb-2">60-70%</div>
+                    <div className="text-sm text-zinc-400">Cost savings</div>
+                  </div>
+                  <div className="glass-panel rounded-xl border border-white/10 p-6 text-center">
+                    <div className="text-3xl font-bold text-white mb-2">90%</div>
+                    <div className="text-sm text-zinc-400">Time reduction</div>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             isEditing && selectedPage && selectedPage.colorizedUrl ? (
