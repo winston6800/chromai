@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { Header } from './components/Header';
 import { Dropzone } from './components/Dropzone';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -207,6 +208,7 @@ const App: React.FC = () => {
       <>
         <Header onNavigate={setCurrentRoute} />
         <PricingPage />
+        <Analytics />
       </>
     );
   }
@@ -214,17 +216,21 @@ const App: React.FC = () => {
   // === RENDER: API KEY LOCK SCREEN ===
   if (isCheckingKey) {
     return (
-      <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
-      </div>
+      <>
+        <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+        </div>
+        <Analytics />
+      </>
     );
   }
 
   if (!hasApiKey && !bypassAuth) {
     return (
-      <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col relative overflow-hidden">
-        <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
-        <Header onNavigate={setCurrentRoute} />
+      <>
+        <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col relative overflow-hidden">
+          <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
+          <Header onNavigate={setCurrentRoute} />
         
         <div className="flex-1 flex flex-col items-center justify-center p-6 z-10">
           <div className="max-w-md w-full glass-panel p-8 rounded-2xl border border-white/10 shadow-2xl flex flex-col items-center text-center space-y-6 relative">
@@ -280,13 +286,16 @@ const App: React.FC = () => {
           </div>
         </div>
       </div>
+      <Analytics />
+    </>
     );
   }
 
   // === RENDER: MAIN APP ===
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100 selection:bg-violet-500/30 overflow-hidden flex flex-col">
-      <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
+    <>
+      <div className="min-h-screen bg-[#09090b] text-zinc-100 selection:bg-violet-500/30 overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
       
       <Header onNavigate={setCurrentRoute} />
 
@@ -593,6 +602,8 @@ const App: React.FC = () => {
 
       </div>
     </div>
+    <Analytics />
+    </>
   );
 };
 
